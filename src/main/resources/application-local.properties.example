@@ -1,0 +1,5 @@
+# Copy this file to application-local.properties and fill in your own values.
+# application-local.properties is ignored by git, so your secrets stay private.
+
+spring.datasource.password=YOUR_MYSQL_PASSWORD
+jwt.secret=PUT_A_RANDOM_STRING_OF_AT_LEAST_32_CHARACTERS_HERE
