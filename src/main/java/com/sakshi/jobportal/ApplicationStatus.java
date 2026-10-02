@@ -1,4 +1,8 @@
 package com.sakshi.jobportal;
 
-public class ApplicationStatus {
+public enum ApplicationStatus {
+    PENDING,
+    SHORTLISTED,
+    HIRED,
+    REJECTED
 }

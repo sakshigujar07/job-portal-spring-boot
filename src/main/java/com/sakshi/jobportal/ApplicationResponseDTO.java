@@ -1,17 +1,14 @@
 package com.sakshi.jobportal;
 
-import jakarta.persistence.*;
 import lombok.Data;
 
-@Entity
-@Table(name = "applications")
 @Data
-public class Application {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+public class ApplicationResponseDTO {
     private Long id;
     private Long jobId;
+    private String jobTitle;
     private Long applicantId;
+    private String applicantName;
     private String status;
     private String resumePath;
 }

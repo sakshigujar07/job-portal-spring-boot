@@ -14,4 +14,10 @@ public class Profile {
     private String resumePath;
     private String skills;
     private String bio;
+
+    private String fullName;
+    private Integer experience;
+    private String currentLocation;
+    private String expectedSalary;
+    private String education;
 }
