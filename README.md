@@ -1,109 +1,82 @@
-# Job Portal API
+package com.sakshi.jobportal;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+import java.util.List;
+import java.util.stream.Collectors;
 
-A REST API for a job portal, built with Spring Boot. Employers can post jobs and manage applications; jobseekers can browse jobs, apply, and build a profile. Built as a Java/Spring Boot rewrite of an earlier PHP/MySQL project, aimed at demonstrating backend fundamentals for interviews.
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
 
-## Tech Stack
+    @Autowired
+    private UserRepository userRepository;
 
-- Java 21, Spring Boot
-- Spring Security + JWT (role-based access control)
-- Spring Data JPA + MySQL
-- BCrypt password hashing
-- Bean Validation (Jakarta Validation)
-- Maven
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
-## Features
+    @Autowired
+    private JwtUtil jwtUtil;
 
-- **Authentication**: JWT-based login/signup with BCrypt password hashing
-- **Role-based access control**: separate permissions for `employer` and `jobseeker` roles
-- **Job postings**: employers create/edit/delete their own jobs; anyone (authenticated) can browse
-- **Applications**: jobseekers apply to jobs; employers manage applications for their own postings
-- **Application workflow**: enforced status transitions — `PENDING → SHORTLISTED/REJECTED`, `SHORTLISTED → HIRED/REJECTED`; `HIRED`/`REJECTED` are final states
-- **Auto-notifications**: applicants are automatically notified when their application status changes
-- **Profiles**: jobseekers manage a profile (skills, bio, resume path); employers can view (not edit) any jobseeker's profile
-- **Input validation**: field-level validation on all create/update requests, with clean JSON error responses
-- **Centralized exception handling**: validation errors, duplicate-data conflicts, and other runtime errors all return consistent, structured JSON
+    @GetMapping
+    public List<UserResponseDTO> getAllUsers() {
+        return userRepository.findAll()
+                .stream()
+                .map(UserResponseDTO::new)
+                .collect(Collectors.toList());
+    }
 
-## Project Structure
+    @PostMapping
+    public UserResponseDTO createUser(@Valid @RequestBody RegisterRequestDTO request) {
+        User user = new User();
+        user.setName(request.getName());
+        user.setEmail(request.getEmail());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRole(request.getRole());
+        user.setContact(request.getContact());
+        user.setAddress(request.getAddress());
+        User savedUser = userRepository.save(user);
+        return new UserResponseDTO(savedUser);
+    }
 
-Single flat package (`com.sakshi.jobportal`) containing:
-- **Entities**: `User`, `Job`, `Application`, `Profile`, `Notification`
-- **Controllers**: `UserController`, `JobController`, `ApplicationController`, `ProfileController`, `NotificationController`
-- **Request DTOs**: `RegisterRequestDTO`, `JobRequestDTO`, `ApplicationRequestDTO`, `ApplicationStatusUpdateDTO`, `ProfileRequestDTO`
-- **Response DTOs**: `UserResponseDTO` (excludes password hash from API responses)
-- **Security**: `SecurityConfig`, `JwtFilter`, `JwtUtil`
-- **Error handling**: `GlobalExceptionHandler`
+    @PostMapping("/login")
+    public ResponseEntity<String> login(@RequestBody User loginRequest) {
+        return userRepository.findByEmail(loginRequest.getEmail())
+                .filter(user -> passwordEncoder.matches(loginRequest.getPassword(), user.getPassword()))
+                .map(user -> ResponseEntity.ok(jwtUtil.generateToken(user.getEmail(), user.getRole())))
+                .orElse(ResponseEntity.status(401).body("Invalid credentials"));
+    }
 
-## Getting Started
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody User updatedUser) {
+        String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
 
-### Prerequisites
-- Java 21
-- MySQL running locally
-- Maven
+        return userRepository.findById(id).map(user -> {
+            if (!user.getEmail().equals(currentEmail)) {
+                return ResponseEntity.status(403).body("You can only update your own account");
+            }
+            user.setName(updatedUser.getName());
+            user.setEmail(updatedUser.getEmail());
+            user.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
+            user.setRole(updatedUser.getRole());
+            User savedUser = userRepository.save(user);
+            return ResponseEntity.ok(new UserResponseDTO(savedUser));
+        }).orElse(ResponseEntity.notFound().build());
+    }
 
-### Setup
-1. Create a MySQL database named `jobportal`.
-2. Configure `src/main/resources/application.properties` with your MySQL username/password and a JWT secret (at least 32 characters).
-3. Run the app:
-   ```
-   mvn spring-boot:run
-   ```
-4. The API will be available at `http://localhost:8080`.
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+        String currentEmail = SecurityContextHolder.getContext().getAuthentication().getName();
 
-## API Endpoints
-
-### Users (`/api/users`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| POST | `/api/users` | Public | Register (signup) |
-| POST | `/api/users/login` | Public | Login, returns JWT |
-| GET | `/api/users` | Authenticated | List all users |
-| PUT | `/api/users/{id}` | Authenticated | Update user |
-| DELETE | `/api/users/{id}` | Authenticated | Delete user |
-
-### Jobs (`/api/jobs`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/api/jobs` | Authenticated | List all jobs |
-| POST | `/api/jobs` | Employer | Create a job posting |
-| PUT | `/api/jobs/{id}` | Employer (own jobs only) | Update a job posting |
-| DELETE | `/api/jobs/{id}` | Employer (own jobs only) | Delete a job posting |
-
-### Applications (`/api/applications`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/api/applications` | Authenticated | List own applications (jobseeker) or applications to own jobs (employer) |
-| POST | `/api/applications` | Jobseeker | Apply to a job |
-| PUT | `/api/applications/{id}` | Employer (own jobs only) | Update application status (enforces valid transitions; triggers a notification to the applicant) |
-| DELETE | `/api/applications/{id}` | Jobseeker (own applications only) | Withdraw an application |
-
-### Profiles (`/api/profiles`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| POST | `/api/profiles/create` | Authenticated | Create own profile (one per user) |
-| GET | `/api/profiles/me` | Authenticated | Get own profile |
-| GET | `/api/profiles/user/{userId}` | Own profile, or any profile if employer | View a profile |
-| PUT | `/api/profiles/update/{id}` | Owner only | Update own profile |
-| DELETE | `/api/profiles/delete/{id}` | Owner only | Delete own profile |
-
-### Notifications (`/api/notifications`)
-| Method | Endpoint | Access | Description |
-|---|---|---|---|
-| GET | `/api/notifications/me` | Authenticated | Get own notifications |
-| PUT | `/api/notifications/read/{id}` | Owner only | Mark a notification as read |
-| DELETE | `/api/notifications/delete/{id}` | Owner only | Delete a notification |
-
-## Application Status Workflow
-
-```
-PENDING ──▶ SHORTLISTED ──▶ HIRED
-   │              │
-   └──────────────┴──────▶ REJECTED
-```
-
-`HIRED` and `REJECTED` are final states — no further transitions are allowed once reached.
-
-## Known Limitations / Next Steps
-
-- No frontend yet — this is a backend-only API, tested via Postman.
-- Auto-notification currently covers application status changes only; job-posted broadcast notifications are not yet implemented.
-- Exception handling uses a broad `RuntimeException` catch-all rather than specific custom exceptions (e.g. `UserNotFoundException`) — a production-grade improvement for later.
+        return userRepository.findById(id).map(user -> {
+            if (!user.getEmail().equals(currentEmail)) {
+                return ResponseEntity.status(403).body("You can only delete your own account");
+            }
+            userRepository.deleteById(id);
+            return ResponseEntity.noContent().build();
+        }).orElse(ResponseEntity.notFound().build());
+    }
+}
