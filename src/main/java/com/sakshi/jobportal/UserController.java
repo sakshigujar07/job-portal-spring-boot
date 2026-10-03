@@ -5,8 +5,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
@@ -20,14 +18,6 @@ public class UserController {
 
     @Autowired
     private JwtUtil jwtUtil;
-
-    @GetMapping
-    public List<UserResponseDTO> getAllUsers() {
-        return userRepository.findAll()
-                .stream()
-                .map(UserResponseDTO::new)
-                .collect(Collectors.toList());
-    }
 
     @PostMapping
     public UserResponseDTO createUser(@Valid @RequestBody RegisterRequestDTO request) {
@@ -60,8 +50,10 @@ public class UserController {
             }
             user.setName(updatedUser.getName());
             user.setEmail(updatedUser.getEmail());
-            user.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
-            user.setRole(updatedUser.getRole());
+            if (updatedUser.getPassword() != null && !updatedUser.getPassword().isBlank()) {
+                user.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
+            }
+            // Role is intentionally NOT updated here, so users cannot change their own role.
             User savedUser = userRepository.save(user);
             return ResponseEntity.ok(new UserResponseDTO(savedUser));
         }).orElse(ResponseEntity.notFound().build());
