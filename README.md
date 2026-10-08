@@ -2,7 +2,7 @@
 
 A job portal backend where employers post jobs and job seekers apply to them. Built with Spring Boot, Spring Security (JWT), JPA/Hibernate and MySQL.
 
-> The React frontend is in a separate repository: _(add the link here)_
+> The React frontend is in a separate repository: [job-portal-frontend](https://github.com/sakshigujar07/job-portal-frontend)
 
 ## Features
 
